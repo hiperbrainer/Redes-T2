@@ -52,8 +52,6 @@ class Servidor:
 
         # Desmonta o cabeçalho do segmento para extrair as informações relevantes.
         src_port, dst_port, seq_no, ack_no, flags, window_size, checksum, urg_ptr = read_header(segment)
-        
-        #print("\033[96m {}\033[00m".format("Chamada ao _rdt_rcv de Servidor"))
 
         # Verifica se o segmento é destinado à porta do servidor.
         # Se não for, ignora o segmento.
@@ -63,7 +61,6 @@ class Servidor:
         # Valida o checksum do segmento para garantir a integridade dos dados.
         # Se o checksum estiver incorreto, o segmento é descartado.
         if not self.rede.ignore_checksum and calc_checksum(segment, src_addr, dst_addr) != 0:
-            print('Descartando segmento com checksum incorreto')
             return
 
         # Extrai o payload (dados) do segmento, ignorando o cabeçalho.
@@ -140,13 +137,10 @@ class ConexaoRDT:
 
         # Verifica se o número de sequência recebido corresponde ao esperado.
         if seq_no != self.ack_no:
-            #print("\033[91m {}\033[00m".format("Sequência incorreta"))
-            #print("\033[96m {}\033[00m".format(f"Fim da função em {time.time()}"))
             return  # Sai do método se a sequência estiver incorreta.
 
         # Verifica se o segmento contém um pedido de fechamento de conexão (flag FIN).
         if (flags & FLAGS_FIN) == FLAGS_FIN:
-            #print("\033[91m {}\033[00m".format("Recebendo flag de fechamento"))
             
             payload = b""  # Nenhum dado adicional é esperado com FIN.
 
@@ -163,12 +157,10 @@ class ConexaoRDT:
 
             # Chama o callback para notificar o recebimento do FIN.
             self.callback(self, payload)
-            #print("\033[96m {}\033[00m".format(f"Fim da função em {time.time()}"))
             return
 
         # Verifica se o segmento é um ACK e não contém payload.
         if (flags & FLAGS_ACK) == FLAGS_ACK and len(payload) == 0:
-            #print("\033[91m {}\033[00m".format("ACK recebido"))
 
             # Atualiza os números de sequência e reconhecimento.
             self.ack_no = seq_no
@@ -185,20 +177,14 @@ class ConexaoRDT:
                 self.timer_ativo = False
                 self.not_check.pop(0)
                 self.window_ocupation -= 1  # Decrementa a ocupação da janela.
-                #print("\033[91m {}\033[00m".format(f"ACKs recebidos -> {self.received_acks}"))
-                #print("\033[91m {}\033[00m".format(f"Tamanho dos dados que ainda precisam ser enviados -> {len(self.dados_restantes)} ou {len(self.dados_restantes) / MSS}"))
-
+                
             # Se ainda restam segmentos não confirmados, reativa o temporizador para o próximo timeout.
             if self.not_check:
                 self.timer = asyncio.get_event_loop().call_later(self.TimeoutInterval, self.timeout)
                 self.timer_ativo = True
 
-            
-            #print("\033[91m {}\033[00m".format(f"Ainda faltam {len(self.not_check)} seguimentos receber ACK."))
             return
         
-        #print("\033[91m {}\033[00m".format("Segmento reconhecido"))
-        #print("\033[91m {}\033[00m".format("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"))
 
         # Se o segmento é válido, envia um ACK para confirmar o recebimento.
         self.ack_no = novo_ack_no = seq_no + len(payload)  # Calcula o próximo ACK esperado.
@@ -221,18 +207,12 @@ class ConexaoRDT:
 
     def enviar(self, dados):
         # Envia os dados para o destinatário, dividindo-os em segmentos e gerenciando o envio e retransmissão.
-        
-        #print("\033[95m {}\033[00m".format("Enviando dados"))
-        #print("\033[95m {}\033[00m".format(f"Janela de tamanho {self.window}"))
-
         (dst_addr, dst_port, src_addr, src_port) = self.id_conexao  # Extrai endereços e portas da conexão.
         buffer = dados  # Carrega os dados a serem enviados no buffer.
 
         # Envia os dados em segmentos até que o buffer esteja vazio.
         while len(buffer) > 0:
-            self.segmentos_count += 1  # Incrementa o contador de segmentos enviados.
-            #print("\033[95m {}\033[00m".format(f"-> Enviando segmento {self.segmentos_count}"))
-
+            self.segmentos_count += 1  # Incrementa o contador de segmentos enviados
             payload = buffer[:MSS]  # Separa o próximo pedaço de dados de acordo com o tamanho máximo de segmento (MSS).
             buffer = buffer[MSS:]  # Remove o pedaço enviado do buffer.
 
@@ -262,11 +242,9 @@ class ConexaoRDT:
         # Método chamado quando ocorre um timeout para retransmitir o primeiro segmento não confirmado.
         
         if self.not_check:
-            #print("\033[93m {}\033[00m".format("--> Timeout! Reenviando segmento..."))
 
             # Reduz o tamanho da janela pela metade como resposta ao timeout.
             self.window = self.window - self.window // 2
-            #print("\033[93m {}\033[00m".format(f"Janela de tamanho {self.window}"))
 
             # Reenvia o primeiro segmento na lista de não confirmados.
             segmento = self.not_check[0][0]
@@ -303,8 +281,6 @@ class ConexaoRDT:
 
     def fechar(self):
         # Encerra a conexão, enviando um segmento com a flag de fechamento (FIN).
-        
-        #print("\033[93m {}\033[00m".format("Mandando flag de fechamento"))
 
         (dst_addr, dst_port, src_addr, src_port) = self.id_conexao  # Extrai endereços e portas da conexão.
         header = make_header(src_port, dst_port, self.seq_no, self.ack_no, FLAGS_FIN)  # Cria o cabeçalho com a flag FIN.
